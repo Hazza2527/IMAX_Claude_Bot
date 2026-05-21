@@ -1,0 +1,18 @@
+{
+  "Dune: Part Three (IMAX 70mm)": {
+    "hash": "d85aa491fd7db85875d650fa747eefe5",
+    "sold_out": true,
+    "on_sale": true,
+    "tickets_url": "https://web.imaxmelbourne.com.au/films/HO00000610",
+    "opens": "Thursday December 17",
+    "alerted_available": false
+  },
+  "The Odyssey (IMAX 70mm)": {
+    "hash": "73a1856f89ff306167b5f10527848c19",
+    "sold_out": true,
+    "on_sale": true,
+    "tickets_url": "https://web.imaxmelbourne.com.au/films/HO00000547",
+    "opens": "Thursday July 16",
+    "alerted_available": false
+  }
+}
