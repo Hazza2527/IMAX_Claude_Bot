@@ -34,7 +34,6 @@ jobs:
         run: |
           git config user.name  "imax-watcher[bot]"
           git config user.email "imax-watcher[bot]@users.noreply.github.com"
-          git pull --rebase
           git add state.json
           git diff --cached --quiet || git commit -m "chore: update watcher state"
-          git push
+          git push --force
