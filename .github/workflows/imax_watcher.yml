@@ -30,9 +30,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python imax_watcher.py
 
-      - - name: Commit updated state (if changed)
-          run: |
-            git config user.name  "imax-watcher[bot]"
-            git config user.email "imax-watcher[bot]@users.noreply.github.com"
-            git add state.json
-            git diff --cached --quiet || (git commit -m "chore: update watcher state" && git pull --rebase && git push)
+      - name: Commit updated state (if changed)
+        run: |
+          git config user.name  "imax-watcher[bot]"
+          git config user.email "imax-watcher[bot]@users.noreply.github.com"
+          git pull --rebase
+          git add state.json
+          git diff --cached --quiet || git commit -m "chore: update watcher state"
+          git push
