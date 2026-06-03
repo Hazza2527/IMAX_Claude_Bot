@@ -8,8 +8,8 @@
     "alerted_available": false
   },
   "The Odyssey (IMAX 70mm)": {
-    "hash": "934ab9db7b4f0d12afe57a1320467b2f",
-    "sold_out": true,
+    "hash": "58af13d654371002e513fdedf5ad6d57",
+    "sold_out": false,
     "on_sale": true,
     "tickets_url": "",
     "opens": "Thursday July 16",
