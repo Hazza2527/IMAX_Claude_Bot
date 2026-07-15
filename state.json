@@ -8,11 +8,11 @@
     "alerted_available": false
   },
   "The Odyssey (IMAX 70mm)": {
-    "hash": "ebfcc0af7a1a984bdae0494832597f81",
+    "hash": "91c005071846d6903fb5340bdb12120d",
     "sold_out": false,
     "on_sale": true,
-    "tickets_url": "https://web.imaxmelbourne.com.au/films/HO00000547",
-    "opens": "Thursday July 16",
+    "tickets_url": "https://web.imaxmelbourne.com.au/films/HO00000546",
+    "opens": "Saturday July 18",
     "alerted_available": true
   }
 }
