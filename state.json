@@ -1,0 +1,35 @@
+{
+  "version": 3,
+  "films": {
+    "dune-part-three": {
+      "consecutive_failures": 0,
+      "surfaces": {
+        "coming soon page": {
+          "present": true,
+          "title": "DUNE: PART THREE - IMAX 70MM FILM PRESENTATION",
+          "movie_url": "https://imaxmelbourne.com.au/movie/dune-part-three",
+          "opens": "Thursday December 17",
+          "banner": "",
+          "sessions_url": "",
+          "body": "SHOT WITH IMAX FILM CAMERAS! Presale SOLD OUT - more tickets on sale closer to release. Subscribe to our newsletter to receive updates when more tickets are released. Experience the epic conclusion."
+        },
+        "now showing page": {
+          "present": false
+        },
+        "film page": {
+          "present": true,
+          "opens": "Thursday December 17 No Free Tickets until Sunday January 31",
+          "banner": "",
+          "sessions_url": "",
+          "body": "DUNE: PART THREE will be presented on IMAX 70mm Film SHOT WITH IMAX FILM CAMERAS! Presale SOLD OUT* - more tickets on sale closer to release. Subscribe to our newsletter to receive updates when more tickets are released. Directed by Denis Villeneuve and written by Villeneuve and Brian K. Vaughan, DUNE: PART THREE is based on the novel Dune Messiah by Frank Herbert and delivers the epic conclusion to Villeneuve’s trilogy. The film stars Timothée Chalamet, Zendaya, Jason Momoa, Florence Pugh, Rebecca Ferguson, Isaach De Bankolé, with Charlotte Rampling, with Anya Taylor-Joy, and Robert Pattinson, and Javier Bardem, and features newcomers Nakoa-Wolf Momoa and Ida Brooke. **IMAX 70mm presentations are special events and no discounted ticket vouchers will be valid for these sessions. Special event films are not valid for $23 Tuesday pricing *Presale tickets are valid for one (1) Collectible Film Strip per ticket purchase for qualifying IMAX 70MM showtimes on opening weekend (Thurs Dec 17 6:15pm, Fri Dec 18 6:15pm, Sat Dec 19 6:15pm and Sun 20 Dec 6:15pm). First come, first served only while supplies last. Film Strip pick up will be at the participating cinema where your ticket is purchased for."
+        }
+      },
+      "listings": [
+        "DUNE: PART THREE - IMAX 70MM FILM PRESENTATION"
+      ]
+    }
+  },
+  "last_heartbeat": "2026-07-26T08:03:49+00:00",
+  "_first_ever": false,
+  "last_check": "2026-07-26T08:03:49+00:00"
+}
