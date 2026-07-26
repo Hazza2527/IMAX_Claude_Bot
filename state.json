@@ -21,7 +21,7 @@
           "opens": "",
           "banner": "",
           "sessions_url": "",
-          "body": "Ticket purchase queue You are now queuing for IMAX Melbourne Tickets. When it is your turn, you will have 5 minutes to enter the website. What is this? Your turn started at Please confirm that you want to proceed to the site as soon as possible Yes, please The event will begin at: 11:00 (03/03/2022) You have lost your connection to the line. Please check your internet connection. Total number of users in queue: 0 Your queue number: calculating... Number of users in queue ahead of you: It is your turn Expected arrival time on the website: The queue is paused. Thank you for waiting. You are now being redirected to the website. You're almost there. You will be redirected to the website as soon as possible. Your estimated wait time is: less than a minute Status last updated: 09:10:09 Message last updated: 14:54 Welcome to the IMAX Melbourne queue. (Please note that your queue number does not indicate how many people are in front of you in the queue). Please notify me when it is my turn: Enter email address Notify me by e-mail"
+          "body": "Ticket purchase queue You are now queuing for IMAX Melbourne Tickets. When it is your turn, you will have 5 minutes to enter the website. What is this? Your turn started at Please confirm that you want to proceed to the site as soon as possible Yes, please The event will begin at: 11:00 (03/03/2022) You have lost your connection to the line. Please check your internet connection. Total number of users in queue: 0 Your queue number: calculating... Number of users in queue ahead of you: It is your turn Expected arrival time on the website: The queue is paused. Thank you for waiting. You are now being redirected to the website. You're almost there. You will be redirected to the website as soon as possible. Your estimated wait time is: less than a minute Status last updated: 09:10:54 Message last updated: 14:54 Welcome to the IMAX Melbourne queue. (Please note that your queue number does not indicate how many people are in front of you in the queue). Please notify me when it is my turn: Enter email address Notify me by e-mail"
         }
       },
       "listings": [
@@ -31,5 +31,5 @@
   },
   "last_heartbeat": "2026-07-26T08:03:49+00:00",
   "_first_ever": false,
-  "last_check": "2026-07-26T23:10:10+00:00"
+  "last_check": "2026-07-26T23:10:55+00:00"
 }
