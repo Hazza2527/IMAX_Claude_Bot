@@ -26,10 +26,11 @@
       },
       "listings": [
         "DUNE: PART THREE - IMAX 70MM FILM PRESENTATION"
-      ]
+      ],
+      "listing_bookings": {}
     }
   },
   "last_heartbeat": "2026-07-26T08:03:49+00:00",
   "_first_ever": false,
-  "last_check": "2026-07-26T23:18:25+00:00"
+  "last_check": "2026-07-26T23:19:45+00:00"
 }
