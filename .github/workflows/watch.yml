@@ -1,0 +1,59 @@
+name: IMAX Dune Watcher
+
+# GitHub's scheduled runs are capped at every 5 minutes and are routinely
+# delayed 10-20 minutes under load, which is far too slow for a surprise ticket
+# drop. So instead of relying on cron, one job polls in a loop for ~5h40m (the
+# job cap is 6h) and dispatches its own successor before exiting. That gives a
+# continuous ~45 second check with no cron jitter.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Watchdog only — the chain re-arms itself. This exists purely to restart
+    # things if a run is ever killed before it can dispatch its successor.
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: write # commit state.json
+  actions: write # dispatch the next run in the chain
+
+# Exactly one poller at a time. GitHub keeps at most one *pending* run per
+# concurrency group (queueing a new one cancels the older pending run), so the
+# watchdog cron and the self-dispatch can never stack up into a pile of jobs.
+concurrency:
+  group: imax-watcher
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet requests beautifulsoup4
+
+      - name: Configure git for state commits
+        run: |
+          git config user.name  "imax-watcher[bot]"
+          git config user.email "imax-watcher[bot]@users.noreply.github.com"
+
+      - name: Watch
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python watcher.py --send --commit --minutes 340
+
+      - name: Start the next run
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run watch.yml --ref ${{ github.ref_name }}
