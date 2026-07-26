@@ -77,6 +77,23 @@ LISTING_PAGES = {
 # Links into the ticketing system. Their presence == tickets are bookable.
 BOOKING_RE = re.compile(r"https?://web\.imaxmelbourne\.com\.au/films/[A-Za-z0-9]+")
 
+# imaxmelbourne.com.au sits behind Queue-it (customer "museumsvictoria", event
+# "imaxtickets"). A fraction of requests get the waiting room served *in place
+# of* the real page. That is not a page change — diffing against it produces an
+# endless alternating alert — so a queued response is treated as "no reading
+# taken", exactly like a failed fetch.
+QUEUEIT_RE = re.compile(
+    r"queue-it\.net|data-queueit-tag-eventid|<title>\s*Queue-it\s*</title>", re.I
+)
+QUEUE_USERS_RE = re.compile(r'"usersInLineAheadOfYou":\s*(null|\d+)')
+QUEUE_WAIT_RE = re.compile(r'"whichIsIn":\s*"([^"]*)"')
+QUEUE_PAUSED_RE = re.compile(r'"queuePaused":\s*(true|false)')
+
+# Don't re-announce a merely-armed queue more than this often.
+QUEUE_QUIET_HOURS = float(os.environ.get("QUEUE_QUIET_HOURS", "6"))
+# A queue with people actually in it is a real rush — alert harder, and sooner.
+QUEUE_BUSY_QUIET_MINUTES = float(os.environ.get("QUEUE_BUSY_QUIET_MINUTES", "20"))
+
 # "on sale" style cue followed closely by something that looks like a date/time.
 # "may" is deliberately not in MONTHS — as a word it is far too ambiguous.
 _MONTHS = (
@@ -183,6 +200,26 @@ def fetch(url: str) -> str | None:
     except requests.RequestException as exc:
         log.warning("Fetch failed for %s: %s", url, exc)
         return None
+
+
+def parse_queue_page(page_html: str) -> dict:
+    """Pull the queue's own status out of a Queue-it waiting room page."""
+    users = QUEUE_USERS_RE.search(page_html)
+    wait = QUEUE_WAIT_RE.search(page_html)
+    paused = QUEUE_PAUSED_RE.search(page_html)
+
+    ahead = None
+    if users and users.group(1) != "null":
+        ahead = int(users.group(1))
+
+    return {
+        "users_ahead": ahead,
+        "wait": wait.group(1) if wait else "",
+        "paused": paused.group(1) == "true" if paused else False,
+        # An empty queue is the site simply being armed; people in front of you
+        # means a sale is actually being rushed right now.
+        "busy": bool(ahead),
+    }
 
 
 def _strip(fragment, selectors: tuple[str, ...]):
@@ -318,22 +355,44 @@ def has_on_sale_date(snapshot: dict) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def collect(film: dict) -> tuple[dict, dict, bool]:
+def collect(film: dict) -> tuple[dict, dict, bool, dict | None]:
     """
     Fetch every surface for a film.
 
-    Returns (snapshots, dune_listings, ok) where `ok` is False if a page could
-    not be fetched — in that case we leave the previous state untouched rather
-    than mistaking an outage for a change.
+    Returns (snapshots, matching_listings, ok, queue). `ok` is False if any page
+    could not be read — either a failed fetch or a Queue-it waiting room served
+    in place of the real page. Either way the previous state is left untouched,
+    so an outage or a queue is never mistaken for a change.
     """
     snapshots: dict[str, dict] = {}
     matching_listings: dict[str, dict] = {}
     ok = True
+    queue: dict | None = None
+
+    def read(url: str) -> str | None:
+        """Fetch a page, retrying past the queue — only some requests get it."""
+        nonlocal ok, queue
+        for attempt in range(3):
+            page = fetch(url)
+            if page is None:
+                ok = False
+                return None
+            if not QUEUEIT_RE.search(page):
+                return page
+            queue = parse_queue_page(page)
+            log.info(
+                "Queue-it waiting room for %s (attempt %d/3, %s)",
+                url,
+                attempt + 1,
+                f"{queue['users_ahead']} ahead" if queue["busy"] else "queue empty",
+            )
+            time.sleep(2)
+        ok = False
+        return None
 
     for surface, url in LISTING_PAGES.items():
-        page = fetch(url)
+        page = read(url)
         if page is None:
-            ok = False
             continue
         listings = parse_listing_page(page)
         matches = {
@@ -342,16 +401,15 @@ def collect(film: dict) -> tuple[dict, dict, bool]:
             if all(word.lower() in title.lower() for word in film["match"])
         }
         matching_listings.update(matches)
-        # The primary listing is the first match on this surface.
+        # The primary listing is the first match on this surface. Any *other*
+        # matching listing is still tracked for booking links further down.
         snapshots[surface] = next(iter(matches.values()), {"present": False})
 
-    page = fetch(film["film_page"])
-    if page is None:
-        ok = False
-    else:
+    page = read(film["film_page"])
+    if page is not None:
         snapshots["film page"] = parse_film_page(page)
 
-    return snapshots, matching_listings, ok
+    return snapshots, matching_listings, ok, queue
 
 
 # Placeholder for "which page(s) this happened on", filled in after identical
@@ -466,6 +524,29 @@ def evaluate(film: dict, snapshots: dict, listings: dict, prev: dict) -> list[tu
                 )
             )
 
+    # Booking links across *every* matching listing, not just the primary one.
+    # If a separate "DUNE: PART THREE - IMAX LASER" entry shows up with its own
+    # tickets while the 70mm listing stays sold out, this is what catches it.
+    # Shares the booking:<url> signature, so it merges with the per-surface
+    # check above rather than double-alerting.
+    prev_bookings = prev.get("listing_bookings", {})
+    for title, snap in listings.items():
+        url = snap.get("sessions_url", "")
+        if url and url != prev_bookings.get(title, ""):
+            events.append(
+                (
+                    0,
+                    f"booking:{url}",
+                    "listings",
+                    f"🚨🎟️ <b>TICKETS ARE LIVE — {html.escape(title)}</b>\n\n"
+                    f"A booking link just appeared ({WHERE}).\n\n"
+                    f'👉 <a href="{html.escape(url)}">BOOK NOW</a>\n'
+                    f"<code>{html.escape(url)}</code>\n\n"
+                    f"<i>Open it immediately — join any queue before you do "
+                    f"anything else.</i>",
+                )
+            )
+
     # A brand new separate listing, e.g. a "DUNE: PART THREE - IMAX LASER" entry
     # appearing alongside the 70mm one.
     known = set(prev.get("listings", []))
@@ -575,6 +656,64 @@ def git_persist() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def handle_queue(state: dict, queue: dict, *, send: bool) -> bool:
+    """
+    Report the Queue-it waiting room. Returns True if state changed.
+
+    An armed-but-empty queue is the site on standby and only worth mentioning
+    occasionally. A queue with people in it means a sale is actually being
+    rushed, which is the single most urgent thing this watcher can tell you.
+    """
+    now = datetime.now(timezone.utc)
+    record = state.setdefault("queue", {})
+    changed = False
+
+    quiet = (
+        timedelta(minutes=QUEUE_BUSY_QUIET_MINUTES)
+        if queue["busy"]
+        else timedelta(hours=QUEUE_QUIET_HOURS)
+    )
+    due = True
+    if record.get("last_alert"):
+        try:
+            due = now - datetime.fromisoformat(record["last_alert"]) >= quiet
+        except ValueError:
+            due = True
+    # An empty queue filling up is always worth saying immediately.
+    if queue["busy"] and not record.get("was_busy"):
+        due = True
+
+    if due:
+        if queue["busy"]:
+            waiting = f" ({html.escape(queue['wait'])})" if queue["wait"] else ""
+            message = (
+                f"🚨 <b>QUEUE IS FILLING — a sale is probably live</b>\n\n"
+                f"Queue-it reports <b>{queue['users_ahead']}</b> people ahead of "
+                f"you in line{waiting}.\n\n"
+                f"The queue only fills during a real rush. Get in it now — your "
+                f"position depends on when you join, not when you read this.\n\n"
+                f'👉 <a href="{FILMS[0]["film_page"]}">Open IMAX Melbourne</a>'
+            )
+        else:
+            message = (
+                f"🧍 <b>Queue-it is armed on imaxmelbourne.com.au</b>\n\n"
+                f"The waiting room is being served on some requests, but the "
+                f"queue is empty and passing straight through — so this is the "
+                f"site on standby, not a sale in progress.\n\n"
+                f"They don't usually arm it for nothing. Worth being ready.\n\n"
+                f'👉 <a href="{FILMS[0]["film_page"]}">Open IMAX Melbourne</a>'
+            )
+        if send_telegram(message, send=send):
+            record["last_alert"] = now.isoformat(timespec="seconds")
+            changed = True
+
+    if record.get("was_busy") != queue["busy"]:
+        record["was_busy"] = queue["busy"]
+        changed = True
+
+    return changed
+
+
 def check_cycle(state: dict, *, send: bool) -> bool:
     """One pass over every film. Returns True if state changed and was saved."""
     dirty = False
@@ -582,9 +721,18 @@ def check_cycle(state: dict, *, send: bool) -> bool:
     for film in FILMS:
         key = film["key"]
         prev = state.setdefault("films", {}).setdefault(key, {})
-        snapshots, listings, ok = collect(film)
+        snapshots, listings, ok, queue = collect(film)
+
+        if queue is not None and handle_queue(state, queue, send=send):
+            dirty = True
 
         if not ok:
+            if queue is not None:
+                # Being put in the queue is not a failure — the site is up, we
+                # just didn't get a clean reading. Skip without touching the
+                # snapshot or the blindness counter.
+                log.info("[%s] skipped — queued on every attempt.", key)
+                continue
             # An outage must never be mistaken for a change, so leave the stored
             # snapshot untouched and only record that the fetch failed.
             failures = prev.get("consecutive_failures", 0) + 1
@@ -635,9 +783,19 @@ def check_cycle(state: dict, *, send: bool) -> bool:
         # Only mark the state dirty on a real difference — otherwise the CI loop
         # would commit an identical state file every single cycle.
         seen_listings = sorted(listings)
-        if prev.get("surfaces") != snapshots or prev.get("listings") != seen_listings:
+        seen_bookings = {
+            title: snap.get("sessions_url", "")
+            for title, snap in listings.items()
+            if snap.get("sessions_url")
+        }
+        if (
+            prev.get("surfaces") != snapshots
+            or prev.get("listings") != seen_listings
+            or prev.get("listing_bookings") != seen_bookings
+        ):
             prev["surfaces"] = snapshots
             prev["listings"] = seen_listings
+            prev["listing_bookings"] = seen_bookings
             dirty = True
 
     # Heartbeat, so a long silence always means "nothing has changed".
