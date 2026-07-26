@@ -18,10 +18,10 @@
         },
         "film page": {
           "present": true,
-          "opens": "",
+          "opens": "Thursday December 17 No Free Tickets until Sunday January 31",
           "banner": "",
           "sessions_url": "",
-          "body": "Ticket purchase queue You are now queuing for IMAX Melbourne Tickets. When it is your turn, you will have 5 minutes to enter the website. What is this? Your turn started at Please confirm that you want to proceed to the site as soon as possible Yes, please The event will begin at: 11:00 (03/03/2022) You have lost your connection to the line. Please check your internet connection. Total number of users in queue: 0 Your queue number: calculating... Number of users in queue ahead of you: It is your turn Expected arrival time on the website: The queue is paused. Thank you for waiting. You are now being redirected to the website. You're almost there. You will be redirected to the website as soon as possible. Your estimated wait time is: less than a minute Status last updated: 08:59:38 Message last updated: 14:54 Welcome to the IMAX Melbourne queue. (Please note that your queue number does not indicate how many people are in front of you in the queue). Please notify me when it is my turn: Enter email address Notify me by e-mail"
+          "body": "DUNE: PART THREE will be presented on IMAX 70mm Film SHOT WITH IMAX FILM CAMERAS! Presale SOLD OUT* - more tickets on sale closer to release. Subscribe to our newsletter to receive updates when more tickets are released. Directed by Denis Villeneuve and written by Villeneuve and Brian K. Vaughan, DUNE: PART THREE is based on the novel Dune Messiah by Frank Herbert and delivers the epic conclusion to Villeneuve’s trilogy. The film stars Timothée Chalamet, Zendaya, Jason Momoa, Florence Pugh, Rebecca Ferguson, Isaach De Bankolé, with Charlotte Rampling, with Anya Taylor-Joy, and Robert Pattinson, and Javier Bardem, and features newcomers Nakoa-Wolf Momoa and Ida Brooke. **IMAX 70mm presentations are special events and no discounted ticket vouchers will be valid for these sessions. Special event films are not valid for $23 Tuesday pricing *Presale tickets are valid for one (1) Collectible Film Strip per ticket purchase for qualifying IMAX 70MM showtimes on opening weekend (Thurs Dec 17 6:15pm, Fri Dec 18 6:15pm, Sat Dec 19 6:15pm and Sun 20 Dec 6:15pm). First come, first served only while supplies last. Film Strip pick up will be at the participating cinema where your ticket is purchased for."
         }
       },
       "listings": [
@@ -31,5 +31,5 @@
   },
   "last_heartbeat": "2026-07-26T08:03:49+00:00",
   "_first_ever": false,
-  "last_check": "2026-07-26T22:59:39+00:00"
+  "last_check": "2026-07-26T23:00:25+00:00"
 }
