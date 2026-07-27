@@ -355,24 +355,30 @@ def has_on_sale_date(snapshot: dict) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def collect(film: dict) -> tuple[dict, dict, bool, dict | None]:
+def collect(
+    film: dict, attempts: int = 3
+) -> tuple[dict, dict, bool, bool, dict | None]:
     """
     Fetch every surface for a film.
 
-    Returns (snapshots, matching_listings, ok, queue). `ok` is False if any page
-    could not be read — either a failed fetch or a Queue-it waiting room served
-    in place of the real page. Either way the previous state is left untouched,
-    so an outage or a queue is never mistaken for a change.
+    Returns (snapshots, matching_listings, listings_complete, ok, queue).
+
+    `snapshots` contains only the surfaces that were actually read, so a page
+    that was unreachable or replaced by a queue simply goes unreported this
+    cycle rather than poisoning the comparison. `listings_complete` is False if
+    any listing page was missed, in which case the set of listings can't be
+    trusted (an unread page looks identical to a delisted film).
     """
     snapshots: dict[str, dict] = {}
     matching_listings: dict[str, dict] = {}
+    listings_complete = True
     ok = True
     queue: dict | None = None
 
     def read(url: str) -> str | None:
         """Fetch a page, retrying past the queue — only some requests get it."""
         nonlocal ok, queue
-        for attempt in range(3):
+        for attempt in range(attempts):
             page = fetch(url)
             if page is None:
                 ok = False
@@ -381,18 +387,21 @@ def collect(film: dict) -> tuple[dict, dict, bool, dict | None]:
                 return page
             queue = parse_queue_page(page)
             log.info(
-                "Queue-it waiting room for %s (attempt %d/3, %s)",
+                "Queue-it waiting room for %s (attempt %d/%d, %s)",
                 url,
                 attempt + 1,
+                attempts,
                 f"{queue['users_ahead']} ahead" if queue["busy"] else "queue empty",
             )
-            time.sleep(2)
+            if attempt + 1 < attempts:
+                time.sleep(2)
         ok = False
         return None
 
     for surface, url in LISTING_PAGES.items():
         page = read(url)
         if page is None:
+            listings_complete = False
             continue
         listings = parse_listing_page(page)
         matches = {
@@ -409,7 +418,7 @@ def collect(film: dict) -> tuple[dict, dict, bool, dict | None]:
     if page is not None:
         snapshots["film page"] = parse_film_page(page)
 
-    return snapshots, matching_listings, ok, queue
+    return snapshots, matching_listings, listings_complete, ok, queue
 
 
 # Placeholder for "which page(s) this happened on", filled in after identical
@@ -417,7 +426,13 @@ def collect(film: dict) -> tuple[dict, dict, bool, dict | None]:
 WHERE = "«WHERE»"
 
 
-def evaluate(film: dict, snapshots: dict, listings: dict, prev: dict) -> list[tuple]:
+def evaluate(
+    film: dict,
+    snapshots: dict,
+    listings: dict,
+    prev: dict,
+    listings_complete: bool = True,
+) -> list[tuple]:
     """
     Compare fresh snapshots against stored ones.
 
@@ -529,6 +544,8 @@ def evaluate(film: dict, snapshots: dict, listings: dict, prev: dict) -> list[tu
     # tickets while the 70mm listing stays sold out, this is what catches it.
     # Shares the booking:<url> signature, so it merges with the per-surface
     # check above rather than double-alerting.
+    # Safe on a partial read: this only fires on a booking URL that is new or
+    # changed, never on one that has gone missing.
     prev_bookings = prev.get("listing_bookings", {})
     for title, snap in listings.items():
         url = snap.get("sessions_url", "")
@@ -548,9 +565,10 @@ def evaluate(film: dict, snapshots: dict, listings: dict, prev: dict) -> list[tu
             )
 
     # A brand new separate listing, e.g. a "DUNE: PART THREE - IMAX LASER" entry
-    # appearing alongside the 70mm one.
+    # appearing alongside the 70mm one. Needs a complete read — an unread page
+    # is indistinguishable from a delisted film.
     known = set(prev.get("listings", []))
-    if known:
+    if known and listings_complete:
         for title in listings:
             if title not in known:
                 events.append(
@@ -721,23 +739,33 @@ def check_cycle(state: dict, *, send: bool) -> bool:
     for film in FILMS:
         key = film["key"]
         prev = state.setdefault("films", {}).setdefault(key, {})
-        snapshots, listings, ok, queue = collect(film)
+        # While the queue is gating everything, retrying is 3x the requests for
+        # no extra information. Drop to a single probe until the page returns —
+        # the queue's own state still reads fine from that one request.
+        gated = state.get("queue", {}).get("gating_all", False)
+        snapshots, listings, listings_complete, ok, queue = collect(
+            film, attempts=1 if gated else 3
+        )
 
         if queue is not None and handle_queue(state, queue, send=send):
             dirty = True
 
-        if not ok:
+        now_gated = queue is not None and not ok
+        if now_gated != gated:
+            state.setdefault("queue", {})["gating_all"] = now_gated
+            log.info("Queue gating %s.", "started" if now_gated else "lifted")
+            dirty = True
+
+        if not snapshots:
+            # Nothing readable at all this cycle.
             if queue is not None:
-                # Being put in the queue is not a failure — the site is up, we
-                # just didn't get a clean reading. Skip without touching the
-                # snapshot or the blindness counter.
-                log.info("[%s] skipped — queued on every attempt.", key)
+                # Being queued is not a failure — the site is up, we just didn't
+                # get a reading. Don't touch the blindness counter.
+                log.info("[%s] skipped — queued on every page.", key)
                 continue
-            # An outage must never be mistaken for a change, so leave the stored
-            # snapshot untouched and only record that the fetch failed.
             failures = prev.get("consecutive_failures", 0) + 1
             prev["consecutive_failures"] = failures
-            log.warning("[%s] incomplete fetch (%d in a row)", key, failures)
+            log.warning("[%s] nothing readable (%d in a row)", key, failures)
             if failures == FAILURE_ALERT_THRESHOLD:
                 send_telegram(
                     f"🔌 <b>Watcher can't reach imaxmelbourne.com.au</b>\n\n"
@@ -747,6 +775,13 @@ def check_cycle(state: dict, *, send: bool) -> bool:
                 )
             dirty = True
             continue
+
+        # Partial reads are still useful: a booking link appearing on the coming
+        # soon page matters even while the film page sits behind the queue.
+        if not ok:
+            log.info(
+                "[%s] partial read — got %s", key, ", ".join(snapshots) or "nothing"
+            )
 
         prev["consecutive_failures"] = 0
         first_run = "surfaces" not in prev
@@ -770,7 +805,9 @@ def check_cycle(state: dict, *, send: bool) -> bool:
                 f"wording changes."
             )
         else:
-            message = compose(evaluate(film, snapshots, listings, prev))
+            message = compose(
+                evaluate(film, snapshots, listings, prev, listings_complete)
+            )
 
         if message:
             footer = f'\n\n🔗 <a href="{film["film_page"]}">Film page</a>'
@@ -782,18 +819,29 @@ def check_cycle(state: dict, *, send: bool) -> bool:
 
         # Only mark the state dirty on a real difference — otherwise the CI loop
         # would commit an identical state file every single cycle.
-        seen_listings = sorted(listings)
-        seen_bookings = {
-            title: snap.get("sessions_url", "")
-            for title, snap in listings.items()
-            if snap.get("sessions_url")
-        }
+        # Merge rather than replace: a surface we couldn't read this cycle keeps
+        # its last known snapshot, so a queued page doesn't wipe our baseline.
+        merged = dict(prev.get("surfaces", {}))
+        merged.update(snapshots)
+
+        seen_bookings = dict(prev.get("listing_bookings", {}))
+        seen_bookings.update(
+            {
+                title: snap.get("sessions_url", "")
+                for title, snap in listings.items()
+                if snap.get("sessions_url")
+            }
+        )
+        seen_listings = (
+            sorted(listings) if listings_complete else prev.get("listings", [])
+        )
+
         if (
-            prev.get("surfaces") != snapshots
+            prev.get("surfaces") != merged
             or prev.get("listings") != seen_listings
             or prev.get("listing_bookings") != seen_bookings
         ):
-            prev["surfaces"] = snapshots
+            prev["surfaces"] = merged
             prev["listings"] = seen_listings
             prev["listing_bookings"] = seen_bookings
             dirty = True
