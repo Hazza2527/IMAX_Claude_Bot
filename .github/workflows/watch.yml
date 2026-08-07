@@ -9,20 +9,19 @@ name: IMAX Dune Watcher
 on:
   workflow_dispatch:
   schedule:
-    # Watchdog only — the chain re-arms itself. This exists purely to restart
-    # things if a run is ever killed before it can dispatch its successor.
+    # Watchdog only — the chain re-arms itself. This exists to restart things
+    # if a run is ever killed before it can dispatch its successor, which does
+    # happen: hosted runners occasionally fail to be acquired at all.
     - cron: "*/30 * * * *"
 
 permissions:
   contents: write # commit state.json
-  actions: write # dispatch the next run in the chain
+  actions: write # list runs, and dispatch the next one in the chain
 
-# Exactly one poller at a time. GitHub keeps at most one *pending* run per
-# concurrency group (queueing a new one cancels the older pending run), so the
-# watchdog cron and the self-dispatch can never stack up into a pile of jobs.
-concurrency:
-  group: imax-watcher
-  cancel-in-progress: false
+# NOTE: deliberately no `concurrency:` block. It enforces one-at-a-time by
+# *cancelling* the redundant run, and every cancellation sends a failure
+# notification. The guard step below does the same job by exiting cleanly
+# instead, so redundant runs finish green and silently.
 
 jobs:
   poll:
@@ -30,30 +29,53 @@ jobs:
     timeout-minutes: 350
 
     steps:
+      - name: Skip if another poller is already running
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Any *older* in-flight run wins. Comparing run ids breaks the tie
+          # deterministically, so two runs starting together can't both proceed.
+          others=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow watch.yml \
+                     --status in_progress --limit 50 --json databaseId \
+                     --jq "[.[] | select(.databaseId < ${{ github.run_id }})] | length")
+          echo "older pollers in flight: $others"
+          if [ "$others" -gt 0 ]; then
+            echo "Another poller owns this shift — exiting quietly."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/checkout@v7
 
       - name: Set up Python
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install dependencies
+        if: steps.guard.outputs.skip != 'true'
         run: pip install --quiet requests beautifulsoup4
 
       - name: Configure git for state commits
+        if: steps.guard.outputs.skip != 'true'
         run: |
           git config user.name  "imax-watcher[bot]"
           git config user.email "imax-watcher[bot]@users.noreply.github.com"
 
       - name: Watch
+        if: steps.guard.outputs.skip != 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python watcher.py --send --commit --minutes 340
 
+      # always(), so a crashed or timed-out poll still hands over. Skipped runs
+      # must NOT re-arm, or a guard exit would spawn a replacement immediately.
       - name: Start the next run
-        if: always()
+        if: always() && steps.guard.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run watch.yml --ref ${{ github.ref_name }}
