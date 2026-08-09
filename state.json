@@ -32,10 +32,10 @@
   },
   "last_heartbeat": "2026-08-09T08:09:31+00:00",
   "_first_ever": false,
-  "last_check": "2026-08-09T11:00:55+00:00",
+  "last_check": "2026-08-09T11:04:44+00:00",
   "queue": {
     "last_alert": "2026-08-09T08:13:15+00:00",
     "was_busy": false,
-    "gating_all": false
+    "gating_all": true
   }
 }
