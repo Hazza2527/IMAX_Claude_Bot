@@ -2,7 +2,7 @@
   "version": 3,
   "films": {
     "dune-part-three": {
-      "consecutive_failures": 2,
+      "consecutive_failures": 3,
       "surfaces": {
         "coming soon page": {
           "present": true,
@@ -32,7 +32,7 @@
   },
   "last_heartbeat": "2026-08-17T08:13:38+00:00",
   "_first_ever": false,
-  "last_check": "2026-08-18T01:02:42+00:00",
+  "last_check": "2026-08-18T01:03:28+00:00",
   "queue": {
     "last_alert": "2026-08-10T23:09:41+00:00",
     "was_busy": false,
