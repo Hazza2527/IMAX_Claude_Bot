@@ -11,7 +11,7 @@
           "opens": "Thursday December 17",
           "banner": "",
           "sessions_url": "",
-          "body": "SHOT WITH IMAX FILM CAMERAS! Presale SOLD OUT - more tickets on sale closer to release. Subscribe to our newsletter to receive updates when more tickets are released. Experience the epic conclusion."
+          "body": "SHOT WITH IMAX FILM CAMERAS! Presale SOLD OUT - more tickets on sale closer to release. Subscribe to our newsletter to receive updates when more tickets are released. Experience the epic conclusion. *Exclusive to IMAX, over 71 minutes of sequences will fill the entire screen at 1.43:1"
         },
         "now showing page": {
           "present": false
@@ -32,7 +32,7 @@
   },
   "last_heartbeat": "2026-08-18T08:14:13+00:00",
   "_first_ever": false,
-  "last_check": "2026-08-18T08:14:13+00:00",
+  "last_check": "2026-08-19T00:02:23+00:00",
   "queue": {
     "last_alert": "2026-08-10T23:09:41+00:00",
     "was_busy": false,
